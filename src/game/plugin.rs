@@ -3,7 +3,7 @@ use bevy::asset::Assets;
 use bevy::light::light_consts::lux::{FULL_DAYLIGHT, OVERCAST_DAY};
 use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
-use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, Component, Cuboid, DirectionalLight, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, MessageReader, MessageWriter, MouseButton, OnEnter, Quat, Query, Res, ResMut, StandardMaterial, Time, Transform, Update, Virtual, With, Without, World};
+use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, MessageReader, MessageWriter, MouseButton, OnEnter, OnExit, Quat, Query, Res, ResMut, StandardMaterial, Time, Transform, Update, Virtual, With, Without, World};
 use crate::game::line::LineResource;
 use crate::game::scenes::SceneData;
 use crate::state::GameState;
@@ -17,6 +17,7 @@ impl Plugin for PlayScenePlugin {
             .insert_resource(LineResource::default())
             .add_message::<BuildNewLine>()
             .add_systems(OnEnter(GameState::InGame), setup_scene)
+            .add_systems(OnExit(GameState::InGame), cleanup_scene)
             .add_systems(PreUpdate, process_input.run_if(in_state(GameState::InGame)))
             .add_systems(FixedUpdate, (make_new_line, process_line).chain().run_if(in_state(GameState::InGame)));
             // TODO: make process_line also run after make_new_line
@@ -47,12 +48,18 @@ impl Default for LineHead {
 pub struct LineTail;
 
 #[derive(Component)]
+pub struct GameplayObject;
+
+#[derive(Component)]
 pub struct TransformCollidable;
 
 #[derive(Message)]
 pub struct BuildNewLine {
     flip: bool
 }
+
+#[derive(Message)]
+pub struct ResetScene;
 
 fn setup_scene(
     mut commands: Commands,
@@ -73,7 +80,8 @@ fn setup_scene(
 
     commands.spawn((
         Camera3d::default(),
-        camera_transform
+        camera_transform,
+        GameplayObject
     ));
 
     for cube in &scene.cubes {
@@ -86,7 +94,8 @@ fn setup_scene(
             Mesh3d(cuboid_mesh.clone()),
             MeshMaterial3d(materials.add(cube.color)),
             transform,
-            TransformCollidable
+            TransformCollidable,
+            GameplayObject
         ));
     }
 
@@ -96,25 +105,27 @@ fn setup_scene(
             shadows_enabled: true,
             ..Default::default()
         },
-        Transform::from_translation(Vec3::new(-100.0, 100.0, -100.0))
+        Transform::from_translation(Vec3::new(-100.0, 100.0, -100.0)),
+        GameplayObject
     ));
-
-
 
     commands.spawn((
         Mesh3d(cuboid_mesh.clone()),
         MeshMaterial3d(line_resources.line_material.clone()),
         Transform::from_translation(scene.line_config.start_pos),
-        LineHead::default()
+        LineHead::default(),
+        GameplayObject
     ));
 }
 
 fn process_input(
+    mut commands: Commands,
     mut ew: MessageWriter<BuildNewLine>,
-    input: Res<ButtonInput<MouseButton>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    key_input: Res<ButtonInput<KeyCode>>,
     heads: Query<(Entity, &mut LineHead)>,
 ) {
-    if input.just_pressed(MouseButton::Left) {
+    if mouse_input.just_pressed(MouseButton::Left) {
         for mut head in heads {
             if head.1.frozen {
                 head.1.frozen = false;
@@ -123,6 +134,11 @@ fn process_input(
 
             ew.write(BuildNewLine { flip: true });
         }
+    }
+
+    if key_input.just_pressed(KeyCode::KeyR) {
+        commands.set_state(GameState::Menu);
+        commands.set_state(GameState::InGame);
     }
 }
 
@@ -190,9 +206,19 @@ fn make_new_line(
                 Mesh3d(line_resources.line_mesh.clone()),
                 MeshMaterial3d(line_resources.line_material.clone()),
                 new_transform,
-                head.1.clone()
+                head.1.clone(),
+                GameplayObject
             ));
         }
 
+    }
+}
+
+fn cleanup_scene(
+    mut commands: Commands,
+    objects: Query<Entity, With<GameplayObject>>,
+) {
+    for object in objects {
+        commands.entity(object).despawn();
     }
 }
