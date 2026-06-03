@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use bevy::color::LinearRgba;
 use bevy::prelude::{Color, Resource, Transform, Vec3};
 use crate::game::camera::CameraConfig;
 use crate::game::line::LineConfig;
@@ -13,15 +14,35 @@ pub struct SceneData {
 
 impl SceneData {
     pub fn new_simple() -> Self {
+        let mut cubes = vec![
+            Cuboid::new()
+                .with_position(Vec3::new(0.0, -1.0, 0.0))
+                .with_scale(Vec3::new(20.0, 1.0, 20.0))
+        ];
+
+        let size = 2.0;
+        let mut x = 0.0;
+        let mut z = 0.0;
+        for _ in 0..100 {
+            if rand::random::<f32>() > 0.5 {
+                x += size;
+            } else {
+                z += size;
+            }
+            cubes.push(
+                Cuboid::new()
+                    .with_position(Vec3::new(x, -1.0, z))
+                    .with_scale(Vec3::new(size, 0.5, size))
+                    .with_color(Color::LinearRgba(LinearRgba::BLUE))
+            );
+        }
+
+
         SceneData {
             start_pos: Vec3::new(0.0, 0.0, 0.0),
             camera_config: CameraConfig::default(),
             line_config: LineConfig::default(),
-            cubes: vec![
-                Cuboid::new()
-                    .with_position(Vec3::new(0.0, -1.0, 0.0))
-                    .with_scale(Vec3::new(20.0, 1.0, 20.0))
-            ]
+            cubes
         }
     }
 }

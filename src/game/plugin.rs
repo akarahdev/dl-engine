@@ -1,7 +1,9 @@
 use bevy::app::{FixedUpdate, Plugin, PostUpdate, PreUpdate};
 use bevy::asset::Assets;
+use bevy::camera::primitives::Aabb;
 use bevy::light::light_consts::lux::{FULL_DAYLIGHT, OVERCAST_DAY};
 use bevy::math::{EulerRot, Vec3};
+use bevy::math::bounding::{Aabb3d, BoundingVolume};
 use bevy::mesh::{Mesh, Mesh3d};
 use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, MessageReader, MessageWriter, MouseButton, OnEnter, OnExit, Quat, Query, Res, ResMut, StandardMaterial, Time, Transform, Update, Virtual, With, Without, World};
 use crate::game::line::LineResource;
@@ -19,7 +21,7 @@ impl Plugin for PlayScenePlugin {
             .add_systems(OnEnter(GameState::InGame), setup_scene)
             .add_systems(OnExit(GameState::InGame), cleanup_scene)
             .add_systems(PreUpdate, process_input.run_if(in_state(GameState::InGame)))
-            .add_systems(FixedUpdate, (make_new_line, process_line).chain().run_if(in_state(GameState::InGame)));
+            .add_systems(FixedUpdate, (make_new_line, process_line, make_line_fall).chain().run_if(in_state(GameState::InGame)));
             // TODO: make process_line also run after make_new_line
             // .add_systems(PostUpdate, make_new_line.run_if(in_state(GameState::InGame)));
     }
@@ -30,17 +32,48 @@ pub struct LineHead {
     pub frozen: bool,
     pub speed: f32,
     pub base_rot: f32,
-    pub is_in_alternated_rot: bool
+    pub is_in_alternated_rot: bool,
+    pub unique_id: i32,
+    pub is_on_ground: bool,
+    pub y_vel: f32
 }
 
-impl Default for LineHead {
-    fn default() -> Self {
+impl LineHead {
+    pub fn new(id: i32) -> Self {
         LineHead {
             frozen: true,
             speed: 0.2,
             base_rot: 0.0,
-            is_in_alternated_rot: false
+            is_in_alternated_rot: false,
+            unique_id: id,
+            is_on_ground: true,
+            y_vel: 0.0
         }
+    }
+
+    pub fn new_rand() -> Self {
+        LineHead {
+            frozen: true,
+            speed: 0.2,
+            base_rot: 0.0,
+            is_in_alternated_rot: false,
+            unique_id: rand::random::<i32>(),
+            is_on_ground: true,
+            y_vel: 0.0
+        }
+    }
+
+    pub fn with_new_id(self) -> Self {
+        LineHead {
+            unique_id: rand::random::<i32>(),
+            ..self
+        }
+    }
+}
+
+impl Default for LineHead {
+    fn default() -> Self {
+        Self::new_rand()
     }
 }
 
@@ -55,7 +88,8 @@ pub struct TransformCollidable;
 
 #[derive(Message)]
 pub struct BuildNewLine {
-    flip: bool
+    flip: bool,
+    targetting: i32
 }
 
 #[derive(Message)]
@@ -131,8 +165,10 @@ fn process_input(
                 head.1.frozen = false;
                 continue;
             }
+            if head.1.is_on_ground {
+                ew.write(BuildNewLine { flip: true, targetting: -1 });
+            }
 
-            ew.write(BuildNewLine { flip: true });
         }
     }
 
@@ -145,20 +181,66 @@ fn process_input(
 fn process_line(
     mut mr: MessageReader<BuildNewLine>,
     mut heads: Query<(&mut Transform, &mut LineHead), Without<Camera3d>>,
+    mut collidables: Query<(Entity, &TransformCollidable, &Aabb), Without<Camera3d>>,
 ) {
     for mut head in heads.iter_mut() {
-        process_head((&mut head.0, &mut head.1));
+        if head.1.frozen {
+            return;
+        }
+        if head.1.is_on_ground {
+            head.0.scale.z += head.1.speed;
+            let t = forward_of_head((&head.1, &head.0)) * head.1.speed;
+            head.0.translation += t / 2.0;
+        } else {
+            let t = forward_of_head((&head.1, &head.0)) * head.1.speed;
+            head.0.translation += t;
+            head.0.translation.y += head.1.y_vel;
+            head.1.y_vel -= 0.005;
+        }
     }
 }
 
-fn process_head(head: (&mut Transform, &mut LineHead)) {
-    if head.1.frozen {
-        return;
+fn make_line_fall(
+    mut mw: MessageWriter<BuildNewLine>,
+    mut heads: Query<(&mut LineHead, &Transform)>,
+    collidables: Query<(Entity, &TransformCollidable, &Aabb, &Transform), Without<Camera3d>>,
+) {
+    for mut head in heads.iter_mut() {
+        let mut is_colliding = false;
+
+        for collidable in collidables {
+            let min = collidable.3.translation - (collidable.3.scale / 2.0);
+            let max = collidable.3.translation + (collidable.3.scale / 2.0);
+            let head_pos = tip_of_head((&*head.0, head.1)) - Vec3::new(0.0, 0.5, 0.0);
+            // println!("{head_pos:?} in {min:?} / {max:?}");
+            if head_pos.x >= min.x && head_pos.x <= max.x
+                && head_pos.y >= min.y && head_pos.y <= max.y
+                && head_pos.z >= min.z && head_pos.z <= max.z {
+
+                is_colliding = true;
+                break;
+            }
+        }
+
+        if !is_colliding && head.0.is_on_ground {
+            head.0.is_on_ground = false;
+            mw.write(BuildNewLine {
+                flip: false,
+                targetting: head.0.unique_id
+            });
+        }
+
+        if is_colliding && !head.0.is_on_ground {
+            head.0.is_on_ground = true;
+            head.0.y_vel = 0.0;
+            mw.write(BuildNewLine {
+                flip: false,
+                targetting: head.0.unique_id
+            });
+        }
     }
-    head.0.scale.z += head.1.speed;
-    let t = forward_of_head((&head.1, &head.0)) * head.1.speed;
-    head.0.translation += t / 2.0;
 }
+
 fn forward_of_head(head: (&LineHead, &Transform)) -> Vec3 {
     let f_rot =
         head.0.base_rot.to_radians()
@@ -186,6 +268,10 @@ fn make_new_line(
 ) {
     for msg in mr.read() {
         for mut head in heads.iter_mut() {
+            if msg.targetting != -1 && msg.targetting != head.1.unique_id {
+                continue;
+            }
+
             commands.entity(head.0).remove::<LineHead>();
 
             let mut new_transform = Transform::from_translation(
@@ -206,7 +292,7 @@ fn make_new_line(
                 Mesh3d(line_resources.line_mesh.clone()),
                 MeshMaterial3d(line_resources.line_material.clone()),
                 new_transform,
-                head.1.clone(),
+                head.1.clone().with_new_id(),
                 GameplayObject
             ));
         }
