@@ -1,8 +1,8 @@
-use std::sync::Arc;
 use bevy::color::LinearRgba;
-use bevy::prelude::{Color, Component, Resource, Transform, Vec3};
+use bevy::prelude::{Color, Resource, Vec3};
 use crate::game::camera::CameraConfig;
 use crate::game::line::LineConfig;
+use crate::game::triggers::TriggerFunction;
 
 #[derive(Resource, Debug)]
 pub struct SceneData {
@@ -133,8 +133,3 @@ impl TriggerArea {
     }
 }
 
-#[derive(Debug, Clone, Component)]
-pub enum TriggerFunction {
-    None,
-    SetCameraOffset(Vec3)
-}
