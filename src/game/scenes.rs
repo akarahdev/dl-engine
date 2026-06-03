@@ -23,7 +23,7 @@ impl SceneData {
         let size = 2.0;
         let mut x = 0.0;
         let mut z = 0.0;
-        for _ in 0..100 {
+        for _ in 0..1000 {
             if rand::random::<f32>() > 0.5 {
                 x += size;
             } else {
@@ -32,7 +32,7 @@ impl SceneData {
             cubes.push(
                 Cuboid::new()
                     .with_position(Vec3::new(x, -1.0, z))
-                    .with_scale(Vec3::new(size, 0.5, size))
+                    .with_scale(Vec3::new(size, 1.0, size))
                     .with_color(Color::LinearRgba(LinearRgba::BLUE))
             );
         }

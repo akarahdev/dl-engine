@@ -20,6 +20,7 @@ impl Plugin for PlayScenePlugin {
             .add_message::<BuildNewLine>()
             .add_systems(OnEnter(GameState::InGame), setup_scene)
             .add_systems(OnExit(GameState::InGame), cleanup_scene)
+            .add_systems(Update, update_camera.run_if(in_state(GameState::InGame)))
             .add_systems(PreUpdate, process_input.run_if(in_state(GameState::InGame)))
             .add_systems(FixedUpdate, (make_new_line, process_line, make_line_fall).chain().run_if(in_state(GameState::InGame)));
             // TODO: make process_line also run after make_new_line
@@ -135,7 +136,7 @@ fn setup_scene(
 
     commands.spawn((
         DirectionalLight {
-            illuminance: FULL_DAYLIGHT,
+            illuminance: FULL_DAYLIGHT * 2.0,
             shadows_enabled: true,
             ..Default::default()
         },
@@ -209,8 +210,8 @@ fn make_line_fall(
         let mut is_colliding = false;
 
         for collidable in collidables {
-            let min = collidable.3.translation - (collidable.3.scale / 2.0);
-            let max = collidable.3.translation + (collidable.3.scale / 2.0);
+            let min = collidable.3.translation - (collidable.3.scale / 2.0) - Vec3::new(0.5, 0.0, 0.5);
+            let max = collidable.3.translation + (collidable.3.scale / 2.0) + Vec3::new(0.5, 0.0, 0.5);
             let head_pos = tip_of_head((&*head.0, head.1)) - Vec3::new(0.0, 0.5, 0.0);
             // println!("{head_pos:?} in {min:?} / {max:?}");
             if head_pos.x >= min.x && head_pos.x <= max.x
@@ -238,6 +239,26 @@ fn make_line_fall(
                 targetting: head.0.unique_id
             });
         }
+    }
+}
+
+fn update_camera(
+    mut commands: Commands,
+    mut heads: Query<(&LineHead, &Transform), Without<Camera3d>>,
+    mut cameras: Query<(&mut Transform, &Camera3d), Without<LineHead>>,
+    mut config: Res<SceneData>,
+) {
+    let mut avg = Vec3::ZERO;
+
+    let mut idx = 0;
+    for (head, transform) in heads.iter() {
+        avg += tip_of_head((&head, transform)) - Vec3::new(0.0, 0.5, 0.0);
+        idx += 1;
+    }
+    avg /= idx as f32;
+
+    for mut camera in cameras {
+        camera.0.translation = camera.0.translation + (avg - camera.0.translation + config.camera_config.offset) * 0.05;
     }
 }
 
