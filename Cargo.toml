@@ -1,0 +1,11 @@
+[package]
+name = "dl-engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.18.1", features = ["dynamic_linking", "debug"] }
+rand = { version = "0.10.1" }
+
+[profile.dev.package."*"]
+opt-level = 3
