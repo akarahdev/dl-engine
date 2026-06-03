@@ -1,5 +1,6 @@
 use bevy::math::Vec3;
-use bevy::prelude::{Color, LinearRgba};
+use bevy::pbr::StandardMaterial;
+use bevy::prelude::{Color, Handle, LinearRgba, Material, Mesh, MeshMaterial3d, Resource};
 
 #[derive(Debug, Clone)]
 pub struct LineConfig {
@@ -14,4 +15,10 @@ impl Default for LineConfig {
             color: Color::LinearRgba(LinearRgba::RED)
         }
     }
+}
+
+#[derive(Resource, Default)]
+pub struct LineResource {
+    pub line_mesh: Handle<Mesh>,
+    pub line_material: Handle<StandardMaterial>
 }

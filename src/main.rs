@@ -2,6 +2,7 @@ use std::sync::Arc;
 use bevy::app::App;
 use bevy::DefaultPlugins;
 use bevy::prelude::AppExtStates;
+use bevy::state::app::StatesPlugin;
 use crate::game::plugin::PlayScenePlugin;
 use crate::state::GameState;
 

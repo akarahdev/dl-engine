@@ -1,11 +1,10 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use bevy::app::{FixedUpdate, Plugin};
+use bevy::app::{FixedUpdate, Plugin, PostUpdate, PreUpdate};
 use bevy::asset::Assets;
 use bevy::light::light_consts::lux::{FULL_DAYLIGHT, OVERCAST_DAY};
 use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
-use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, Component, Cuboid, DirectionalLight, IntoScheduleConfigs, KeyCode, MeshMaterial3d, OnEnter, Quat, Query, Res, ResMut, StandardMaterial, Transform, With};
+use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, Component, Cuboid, DirectionalLight, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, MessageReader, MessageWriter, MouseButton, OnEnter, Quat, Query, Res, ResMut, StandardMaterial, Time, Transform, Update, Virtual, With, Without, World};
+use crate::game::line::LineResource;
 use crate::game::scenes::SceneData;
 use crate::state::GameState;
 
@@ -15,13 +14,34 @@ impl Plugin for PlayScenePlugin {
     fn build(&self, app: &mut bevy::app::App) {
         app
             .insert_resource(SceneData::new_simple())
+            .insert_resource(LineResource::default())
+            .add_message::<BuildNewLine>()
             .add_systems(OnEnter(GameState::InGame), setup_scene)
-            .add_systems(FixedUpdate, print_scene.run_if(in_state(GameState::InGame)));
+            .add_systems(PreUpdate, process_input.run_if(in_state(GameState::InGame)))
+            .add_systems(FixedUpdate, (make_new_line, process_line).chain().run_if(in_state(GameState::InGame)));
+            // TODO: make process_line also run after make_new_line
+            // .add_systems(PostUpdate, make_new_line.run_if(in_state(GameState::InGame)));
     }
 }
 
-#[derive(Component)]
-pub struct LineHead;
+#[derive(Component, Clone)]
+pub struct LineHead {
+    pub frozen: bool,
+    pub speed: f32,
+    pub base_rot: f32,
+    pub is_in_alternated_rot: bool
+}
+
+impl Default for LineHead {
+    fn default() -> Self {
+        LineHead {
+            frozen: true,
+            speed: 0.2,
+            base_rot: 0.0,
+            is_in_alternated_rot: false
+        }
+    }
+}
 
 #[derive(Component)]
 pub struct LineTail;
@@ -29,13 +49,24 @@ pub struct LineTail;
 #[derive(Component)]
 pub struct TransformCollidable;
 
+#[derive(Message)]
+pub struct BuildNewLine {
+    flip: bool
+}
+
 fn setup_scene(
     mut commands: Commands,
+    mut line_resources: ResMut<LineResource>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     scene: Res<SceneData>,
+    mut time: ResMut<Time<Virtual>>
 ) {
-    let cuboid_mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+    // time.set_relative_speed(0.1);
+
+    line_resources.line_mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+    line_resources.line_material = materials.add(scene.line_config.color);
+    let cuboid_mesh = line_resources.line_mesh.clone();
 
     let mut camera_transform = Transform::from_translation(scene.camera_config.offset);
     camera_transform.look_at(scene.line_config.start_pos, Vec3::Y);
@@ -68,48 +99,100 @@ fn setup_scene(
         Transform::from_translation(Vec3::new(-100.0, 100.0, -100.0))
     ));
 
+
+
     commands.spawn((
         Mesh3d(cuboid_mesh.clone()),
-        MeshMaterial3d(materials.add(scene.line_config.color)),
+        MeshMaterial3d(line_resources.line_material.clone()),
         Transform::from_translation(scene.line_config.start_pos),
-        LineHead
+        LineHead::default()
     ));
 }
 
-fn print_scene(
-    scene: Res<SceneData>,
-    cameras: Query<&mut Transform, With<Camera3d>>,
-    input: Res<ButtonInput<KeyCode>>
+fn process_input(
+    mut ew: MessageWriter<BuildNewLine>,
+    input: Res<ButtonInput<MouseButton>>,
+    heads: Query<(Entity, &mut LineHead)>,
 ) {
-    for mut camera in cameras {
-        let rot = camera.rotation.to_euler(EulerRot::XYZ);
-        println!(
-            "{:#?} {:#?} {:#?}",
-            rot.0.to_degrees(), rot.1.to_degrees(), rot.2.to_degrees()
-        );
-        if input.pressed(KeyCode::ArrowLeft) {
-            let (mut yaw, pitch, roll) = camera.rotation.to_euler(EulerRot::XYZ);
-            yaw -= 1_f32.to_radians();
-            camera.rotation = Quat::from_euler(EulerRot::XYZ, yaw, pitch, roll);
-            println!("{yaw:?} {pitch:?} {roll:?}");
+    if input.just_pressed(MouseButton::Left) {
+        for mut head in heads {
+            if head.1.frozen {
+                head.1.frozen = false;
+                continue;
+            }
+
+            ew.write(BuildNewLine { flip: true });
         }
-        if input.pressed(KeyCode::ArrowRight) {
-            let (mut yaw, pitch, roll) = camera.rotation.to_euler(EulerRot::XYZ);
-            yaw += 1_f32.to_radians();
-            camera.rotation = Quat::from_euler(EulerRot::XYZ, yaw, pitch, roll);
-            println!("{yaw:?} {pitch:?} {roll:?}");
+    }
+}
+
+fn process_line(
+    mut mr: MessageReader<BuildNewLine>,
+    mut heads: Query<(&mut Transform, &mut LineHead), Without<Camera3d>>,
+) {
+    for mut head in heads.iter_mut() {
+        process_head((&mut head.0, &mut head.1));
+    }
+}
+
+fn process_head(head: (&mut Transform, &mut LineHead)) {
+    if head.1.frozen {
+        return;
+    }
+    head.0.scale.z += head.1.speed;
+    let t = forward_of_head((&head.1, &head.0)) * head.1.speed;
+    head.0.translation += t / 2.0;
+}
+fn forward_of_head(head: (&LineHead, &Transform)) -> Vec3 {
+    let f_rot =
+        head.0.base_rot.to_radians()
+            + if head.0.is_in_alternated_rot { 90.0_f32.to_radians() } else { 0.0 };
+    return Vec3::new(
+        f_rot.sin(),
+        0.0,
+        f_rot.cos()
+    )
+}
+
+fn tip_of_head_offset_from_center(head: (&LineHead, &Transform)) -> Vec3 {
+    forward_of_head(head) * (head.1.scale.z / 2.0)
+}
+
+fn tip_of_head(head: (&LineHead, &Transform)) -> Vec3 {
+    tip_of_head_offset_from_center(head) + head.1.translation
+}
+
+fn make_new_line(
+    mut mr: MessageReader<BuildNewLine>,
+    mut line_resources: Res<LineResource>,
+    mut commands: Commands,
+    mut heads: Query<(Entity, &mut LineHead, &Transform)>,
+) {
+    for msg in mr.read() {
+        for mut head in heads.iter_mut() {
+            commands.entity(head.0).remove::<LineHead>();
+
+            let mut new_transform = Transform::from_translation(
+                tip_of_head((&*head.1, head.2)) - (forward_of_head((&*head.1, head.2)) * 0.5)
+            );
+
+            if msg.flip {
+                head.1.is_in_alternated_rot = !head.1.is_in_alternated_rot;
+            }
+
+            let factor = if head.1.is_in_alternated_rot {
+                90.0_f32.to_radians()
+            } else {
+                0.0
+            };
+            new_transform.rotate_y(head.1.base_rot.to_radians() + factor);
+            commands.spawn((
+                Mesh3d(line_resources.line_mesh.clone()),
+                MeshMaterial3d(line_resources.line_material.clone()),
+                new_transform,
+                head.1.clone()
+            ));
         }
-        if input.pressed(KeyCode::ArrowUp) {
-            let (mut yaw, mut pitch, roll) = camera.rotation.to_euler(EulerRot::XYZ);
-            pitch += 1_f32.to_radians();
-            camera.rotation = Quat::from_euler(EulerRot::XYZ, yaw, pitch, roll);
-            println!("{yaw:?} {pitch:?} {roll:?}");
-        }
-        if input.pressed(KeyCode::ArrowDown) {
-            let (mut yaw, mut pitch, roll) = camera.rotation.to_euler(EulerRot::XYZ);
-            pitch -= 1_f32.to_radians();
-            camera.rotation = Quat::from_euler(EulerRot::XYZ, yaw, pitch, roll);
-            println!("{yaw:?} {pitch:?} {roll:?}");
-        }
+
     }
 }
