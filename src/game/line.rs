@@ -22,3 +22,8 @@ pub struct LineResource {
     pub line_mesh: Handle<Mesh>,
     pub line_material: Handle<StandardMaterial>
 }
+
+#[derive(Resource, Default)]
+pub struct LiveGameDataResource {
+    pub camera_offset: Vec3
+}

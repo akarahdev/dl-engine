@@ -6,8 +6,8 @@ use bevy::math::{EulerRot, Vec3};
 use bevy::math::bounding::{Aabb3d, BoundingVolume};
 use bevy::mesh::{Mesh, Mesh3d};
 use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, MessageReader, MessageWriter, MouseButton, OnEnter, OnExit, Quat, Query, Res, ResMut, StandardMaterial, Time, Transform, Update, Virtual, With, Without, World};
-use crate::game::line::LineResource;
-use crate::game::scenes::SceneData;
+use crate::game::line::{LineResource, LiveGameDataResource};
+use crate::game::scenes::{SceneData, TriggerArea, TriggerFunction};
 use crate::state::GameState;
 
 pub struct PlayScenePlugin;
@@ -17,12 +17,13 @@ impl Plugin for PlayScenePlugin {
         app
             .insert_resource(SceneData::new_simple())
             .insert_resource(LineResource::default())
+            .insert_resource(LiveGameDataResource::default())
             .add_message::<BuildNewLine>()
             .add_systems(OnEnter(GameState::InGame), setup_scene)
             .add_systems(OnExit(GameState::InGame), cleanup_scene)
             .add_systems(Update, update_camera.run_if(in_state(GameState::InGame)))
             .add_systems(PreUpdate, process_input.run_if(in_state(GameState::InGame)))
-            .add_systems(FixedUpdate, (make_new_line, process_line, make_line_fall).chain().run_if(in_state(GameState::InGame)));
+            .add_systems(FixedUpdate, (make_new_line, process_line, activate_triggers, make_line_fall).chain().run_if(in_state(GameState::InGame)));
             // TODO: make process_line also run after make_new_line
             // .add_systems(PostUpdate, make_new_line.run_if(in_state(GameState::InGame)));
     }
@@ -99,6 +100,7 @@ pub struct ResetScene;
 fn setup_scene(
     mut commands: Commands,
     mut line_resources: ResMut<LineResource>,
+    mut game_resource: ResMut<LiveGameDataResource>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     scene: Res<SceneData>,
@@ -112,6 +114,8 @@ fn setup_scene(
 
     let mut camera_transform = Transform::from_translation(scene.camera_config.offset);
     camera_transform.look_at(scene.line_config.start_pos, Vec3::Y);
+
+    game_resource.camera_offset = scene.camera_config.offset;
 
     commands.spawn((
         Camera3d::default(),
@@ -134,13 +138,24 @@ fn setup_scene(
         ));
     }
 
+    for trigger in &scene.trigger_areas {
+        let mut transform = Transform::from_translation(trigger.position);
+        transform = transform.with_scale(trigger.scale);
+        commands.spawn((
+            transform,
+            trigger.function.clone(),
+            GameplayObject
+        ));
+    }
+
     commands.spawn((
         DirectionalLight {
-            illuminance: FULL_DAYLIGHT * 2.0,
+            illuminance: OVERCAST_DAY,
             shadows_enabled: true,
             ..Default::default()
         },
-        Transform::from_translation(Vec3::new(-100.0, 100.0, -100.0)),
+        Transform::from_translation(Vec3::new(0.0, 0.0, 0.0))
+            .with_rotation(Quat::from_euler(EulerRot::XYZ, -90.0, 0.0, 0.0)),
         GameplayObject
     ));
 
@@ -201,29 +216,35 @@ fn process_line(
     }
 }
 
+fn is_colliding(
+    cuboid: &Transform,
+    head_pos: Vec3,
+    epsilon: Vec3
+) -> bool {
+    let min = cuboid.translation - (cuboid.scale / 2.0) - epsilon;
+    let max = cuboid.translation + (cuboid.scale / 2.0) + epsilon;
+    head_pos.x >= min.x && head_pos.x <= max.x
+        && head_pos.y >= min.y && head_pos.y <= max.y
+        && head_pos.z >= min.z && head_pos.z <= max.z
+}
+
 fn make_line_fall(
     mut mw: MessageWriter<BuildNewLine>,
     mut heads: Query<(&mut LineHead, &Transform)>,
     collidables: Query<(Entity, &TransformCollidable, &Aabb, &Transform), Without<Camera3d>>,
 ) {
     for mut head in heads.iter_mut() {
-        let mut is_colliding = false;
+        let mut is_colliding_v = false;
 
         for collidable in collidables {
-            let min = collidable.3.translation - (collidable.3.scale / 2.0) - Vec3::new(0.5, 0.0, 0.5);
-            let max = collidable.3.translation + (collidable.3.scale / 2.0) + Vec3::new(0.5, 0.0, 0.5);
             let head_pos = tip_of_head((&*head.0, head.1)) - Vec3::new(0.0, 0.5, 0.0);
-            // println!("{head_pos:?} in {min:?} / {max:?}");
-            if head_pos.x >= min.x && head_pos.x <= max.x
-                && head_pos.y >= min.y && head_pos.y <= max.y
-                && head_pos.z >= min.z && head_pos.z <= max.z {
-
-                is_colliding = true;
+            if is_colliding(&collidable.3, head_pos, Vec3::new(0.5, 0.0, 0.5)) {
+                is_colliding_v = true;
                 break;
             }
         }
 
-        if !is_colliding && head.0.is_on_ground {
+        if !is_colliding_v && head.0.is_on_ground {
             head.0.is_on_ground = false;
             mw.write(BuildNewLine {
                 flip: false,
@@ -231,7 +252,7 @@ fn make_line_fall(
             });
         }
 
-        if is_colliding && !head.0.is_on_ground {
+        if is_colliding_v && !head.0.is_on_ground {
             head.0.is_on_ground = true;
             head.0.y_vel = 0.0;
             mw.write(BuildNewLine {
@@ -246,7 +267,7 @@ fn update_camera(
     mut commands: Commands,
     mut heads: Query<(&LineHead, &Transform), Without<Camera3d>>,
     mut cameras: Query<(&mut Transform, &Camera3d), Without<LineHead>>,
-    mut config: Res<SceneData>,
+    mut game_resource: Res<LiveGameDataResource>,
 ) {
     let mut avg = Vec3::ZERO;
 
@@ -258,7 +279,9 @@ fn update_camera(
     avg /= idx as f32;
 
     for mut camera in cameras {
-        camera.0.translation = camera.0.translation + (avg - camera.0.translation + config.camera_config.offset) * 0.05;
+        camera.0.translation = camera.0.translation.slerp(avg+ game_resource.camera_offset, 0.01);
+        let target_rot = camera.0.looking_at(avg, Vec3::Y).rotation;
+        camera.0.rotation = camera.0.rotation.slerp(target_rot, 0.01);
     }
 }
 
@@ -327,5 +350,25 @@ fn cleanup_scene(
 ) {
     for object in objects {
         commands.entity(object).despawn();
+    }
+}
+
+fn activate_triggers(
+    heads: Query<(&LineHead, &Transform)>,
+    triggers: Query<(&TriggerFunction, &Transform)>,
+    mut game_resource: ResMut<LiveGameDataResource>,
+) {
+    for head in heads {
+        let head_pos = tip_of_head((head.0, head.1)) - Vec3::new(0.0, 0.5, 0.0);
+        for trigger in triggers {
+            if is_colliding(trigger.1, head_pos, Vec3::new(0.0, 0.0, 0.0)) {
+                match trigger.0 {
+                    TriggerFunction::None => {}
+                    TriggerFunction::SetCameraOffset(offset) => {
+                        game_resource.camera_offset = *offset;
+                    }
+                }
+            }
+        }
     }
 }

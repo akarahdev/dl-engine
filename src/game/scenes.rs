@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use bevy::color::LinearRgba;
-use bevy::prelude::{Color, Resource, Transform, Vec3};
+use bevy::prelude::{Color, Component, Resource, Transform, Vec3};
 use crate::game::camera::CameraConfig;
 use crate::game::line::LineConfig;
 
@@ -9,7 +9,9 @@ pub struct SceneData {
     pub start_pos: Vec3,
     pub camera_config: CameraConfig,
     pub line_config: LineConfig,
+
     pub cubes: Vec<Cuboid>,
+    pub trigger_areas: Vec<TriggerArea>,
 }
 
 impl SceneData {
@@ -19,6 +21,7 @@ impl SceneData {
                 .with_position(Vec3::new(0.0, -1.0, 0.0))
                 .with_scale(Vec3::new(20.0, 1.0, 20.0))
         ];
+        let mut trigger_areas = vec![];
 
         let size = 2.0;
         let mut x = 0.0;
@@ -35,6 +38,17 @@ impl SceneData {
                     .with_scale(Vec3::new(size, 1.0, size))
                     .with_color(Color::LinearRgba(LinearRgba::BLUE))
             );
+
+            if rand::random::<f32>() < 0.1 {
+                let off_x = rand::random::<f32>() * 24.0 - 12.0;
+                let off_z = rand::random::<f32>() * 24.0 - 12.0;
+                trigger_areas.push(
+                    TriggerArea::new()
+                        .with_position(Vec3::new(x, 0.0, z))
+                        .with_scale(Vec3::new(size, 10.0, size))
+                        .with_function(TriggerFunction::SetCameraOffset(Vec3::new(off_x, 12.0, off_z)))
+                )
+            }
         }
 
 
@@ -42,7 +56,8 @@ impl SceneData {
             start_pos: Vec3::new(0.0, 0.0, 0.0),
             camera_config: CameraConfig::default(),
             line_config: LineConfig::default(),
-            cubes
+            cubes,
+            trigger_areas
         }
     }
 }
@@ -84,4 +99,42 @@ impl Cuboid {
         self.color = color;
         return self;
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct TriggerArea {
+    pub position: Vec3,
+    pub scale: Vec3,
+    pub function: TriggerFunction,
+}
+
+impl TriggerArea {
+    pub fn new() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            scale: Vec3::ONE,
+            function: TriggerFunction::None,
+        }
+    }
+
+    pub fn with_position(mut self, position: Vec3) -> Self {
+        self.position = position;
+        return self;
+    }
+
+    pub fn with_scale(mut self, scale: Vec3) -> Self {
+        self.scale = scale;
+        return self;
+    }
+
+    pub fn with_function(mut self, function: TriggerFunction) -> Self {
+        self.function = function;
+        return self;
+    }
+}
+
+#[derive(Debug, Clone, Component)]
+pub enum TriggerFunction {
+    None,
+    SetCameraOffset(Vec3)
 }
