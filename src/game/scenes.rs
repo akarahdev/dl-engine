@@ -1,3 +1,5 @@
+use std::array;
+use std::collections::HashMap;
 use bevy::color::LinearRgba;
 use bevy::prelude::{Color, Resource, Vec3};
 use crate::game::camera::CameraConfig;
@@ -12,6 +14,7 @@ pub struct SceneData {
 
     pub cubes: Vec<Cuboid>,
     pub trigger_areas: Vec<TriggerArea>,
+    pub color_channels: [Color; u8::MAX as usize],
 }
 
 impl SceneData {
@@ -36,7 +39,7 @@ impl SceneData {
                 Cuboid::new()
                     .with_position(Vec3::new(x, -1.0, z))
                     .with_scale(Vec3::new(size, 1.0, size))
-                    .with_color(Color::LinearRgba(LinearRgba::BLUE))
+                    .with_color_channel(1)
             );
 
             if rand::random::<f32>() < 0.1 {
@@ -51,7 +54,6 @@ impl SceneData {
             }
 
             if rand::random::<f32>() < 0.1 {
-
                 trigger_areas.push(
                     TriggerArea::new()
                         .with_position(Vec3::new(x, 0.0, z))
@@ -66,22 +68,42 @@ impl SceneData {
                         ))
                 )
             }
+
+            if rand::random::<f32>() < 0.1 {
+                trigger_areas.push(
+                    TriggerArea::new()
+                        .with_position(Vec3::new(x, 0.0, z))
+                        .with_scale(Vec3::new(size, 10.0, size))
+                        .with_function(TriggerFunction::ChangeColorOfChannel(
+                            1,
+                            Color::LinearRgba(LinearRgba::new(
+                                rand::random::<f32>(),
+                                rand::random::<f32>(),
+                                rand::random::<f32>(),
+                                1.0
+                            ))
+                        ))
+                )
+            }
         }
 
+        let mut arr = array::from_fn(|_| Color::LinearRgba(LinearRgba::WHITE));
+        arr[1] = Color::LinearRgba(LinearRgba::BLUE);
 
         SceneData {
             start_pos: Vec3::new(0.0, 0.0, 0.0),
             camera_config: CameraConfig::default(),
             line_config: LineConfig::default(),
             cubes,
-            trigger_areas
+            trigger_areas,
+            color_channels: arr,
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Cuboid {
-    pub color: Color,
+    pub color: u8,
     pub position: Vec3,
     pub rotation_euler: Vec3,
     pub scale: Vec3,
@@ -90,7 +112,7 @@ pub struct Cuboid {
 impl Cuboid {
     pub fn new() -> Self {
         Self {
-            color: Color::WHITE,
+            color: 0,
             position: Vec3::ZERO,
             rotation_euler: Vec3::ONE,
             scale: Vec3::ONE,
@@ -112,7 +134,7 @@ impl Cuboid {
         return self;
     }
 
-    pub fn with_color(mut self, color: Color) -> Self {
+    pub fn with_color_channel(mut self, color: u8) -> Self {
         self.color = color;
         return self;
     }

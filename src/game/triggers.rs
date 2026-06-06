@@ -5,5 +5,6 @@ use bevy::math::Vec3;
 pub enum TriggerFunction {
     None,
     SetCameraOffset(Vec3),
-    RecolorLine(Color)
+    RecolorLine(Color),
+    ChangeColorOfChannel(u8, Color)
 }

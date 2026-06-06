@@ -1,9 +1,12 @@
+use std::array;
+use std::collections::HashMap;
 use bevy::app::{FixedUpdate, Plugin, PreUpdate};
 use bevy::asset::Assets;
+use bevy::color::Color;
 use bevy::light::light_consts::lux::OVERCAST_DAY;
 use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
-use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, OnEnter, OnExit, Quat, Query, Res, ResMut, Resource, StandardMaterial, Time, Transform, Update, Virtual, With};
+use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, Handle, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, OnEnter, OnExit, Quat, Query, Res, ResMut, Resource, StandardMaterial, Time, Transform, Update, Virtual, With};
 use crate::game::line::LineResource;
 use crate::game::scenes::SceneData;
 use crate::game::{camera, line, utils};
@@ -17,7 +20,10 @@ impl Plugin for PlayScenePlugin {
         app
             .insert_resource(SceneData::new_simple())
             .insert_resource(LineResource::default())
-            .insert_resource(LiveGameDataResource::default())
+            .insert_resource(LiveGameDataResource {
+                camera_offset: Vec3::new(-6.0, 6.0, -6.0),
+                materials_to_colors: array::from_fn(|_| Handle::default()),
+            })
             .add_message::<BuildNewLine>()
             .add_systems(OnEnter(GameState::InGame), setup_scene)
             .add_systems(OnExit(GameState::InGame), cleanup_scene)
@@ -131,6 +137,11 @@ pub fn setup_scene(
         GameplayObject
     ));
 
+    for idx in 0..u8::MAX {
+        let idx = idx as usize;
+        game_resource.materials_to_colors[idx] = materials.add(scene.color_channels[idx])
+    }
+
     for cube in &scene.cubes {
         let mut transform = Transform::from_translation(cube.position);
         transform = transform.with_scale(cube.scale);
@@ -139,7 +150,7 @@ pub fn setup_scene(
         transform.rotate_z(cube.rotation_euler.z.to_radians());
         commands.spawn((
             Mesh3d(cuboid_mesh.clone()),
-            MeshMaterial3d(materials.add(cube.color)),
+            MeshMaterial3d(game_resource.materials_to_colors[cube.color as usize].clone()),
             transform,
             TransformCollidable,
             GameplayObject
@@ -211,13 +222,20 @@ fn activate_triggers(
                             commands.entity(tail.0).insert(MeshMaterial3d(color_mat.clone()));
                         }
                     }
+                    TriggerFunction::ChangeColorOfChannel(channel, color) => {
+                        let handle = game_resource.materials_to_colors[*channel as usize].clone();
+                        if let Some(material) = materials.get_mut(&handle) {
+                            material.base_color = *color;
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct LiveGameDataResource {
-    pub camera_offset: Vec3
+    pub camera_offset: Vec3,
+    pub materials_to_colors: [Handle<StandardMaterial>; u8::MAX as usize],
 }
