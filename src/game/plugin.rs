@@ -3,7 +3,7 @@ use bevy::asset::Assets;
 use bevy::light::light_consts::lux::OVERCAST_DAY;
 use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
-use bevy::prelude::{in_state, Camera3d, Commands, Component, Cuboid, DirectionalLight, Entity, IntoScheduleConfigs, MeshMaterial3d, Message, OnEnter, OnExit, Quat, Query, Res, ResMut, Resource, StandardMaterial, Time, Transform, Update, Virtual, With};
+use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, OnEnter, OnExit, Quat, Query, Res, ResMut, Resource, StandardMaterial, Time, Transform, Update, Virtual, With};
 use crate::game::line::LineResource;
 use crate::game::scenes::SceneData;
 use crate::game::{camera, line, utils};
@@ -23,9 +23,17 @@ impl Plugin for PlayScenePlugin {
             .add_systems(OnExit(GameState::InGame), cleanup_scene)
             .add_systems(Update, camera::update_camera.run_if(in_state(GameState::InGame)))
             .add_systems(PreUpdate, line::process_input.run_if(in_state(GameState::InGame)))
-            .add_systems(FixedUpdate, (line::make_new_line, line::process_line, activate_triggers, line::make_line_fall).chain().run_if(in_state(GameState::InGame)));
-            // TODO: make process_line also run after make_new_line
-            // .add_systems(PostUpdate, make_new_line.run_if(in_state(GameState::InGame)));
+            .add_systems(FixedUpdate, (line::make_new_line, line::process_line, activate_triggers, line::make_line_fall).chain().run_if(in_state(GameState::InGame)))
+            .add_systems(Update, switch_to_editor.run_if(in_state(GameState::InGame)));
+    }
+}
+
+fn switch_to_editor(
+    mut commands: Commands,
+    input: Res<ButtonInput<KeyCode>>
+) {
+    if input.just_pressed(KeyCode::KeyE) {
+        commands.set_state(GameState::Editor);
     }
 }
 
@@ -97,7 +105,7 @@ pub struct BuildNewLine {
 #[derive(Message)]
 pub struct ResetScene;
 
-fn setup_scene(
+pub fn setup_scene(
     mut commands: Commands,
     mut line_resources: ResMut<LineResource>,
     mut game_resource: ResMut<LiveGameDataResource>,
@@ -168,7 +176,7 @@ fn setup_scene(
     ));
 }
 
-fn cleanup_scene(
+pub(crate) fn cleanup_scene(
     mut commands: Commands,
     objects: Query<Entity, With<GameplayObject>>,
 ) {

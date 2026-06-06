@@ -4,5 +4,6 @@ use bevy::prelude::{Resource, States};
 pub enum GameState {
     #[default]
     InGame,
+    Editor,
     Menu
 }
