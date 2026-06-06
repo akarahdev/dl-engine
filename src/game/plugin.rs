@@ -7,6 +7,7 @@ use bevy::light::light_consts::lux::OVERCAST_DAY;
 use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
 use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, Handle, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, OnEnter, OnExit, Quat, Query, Res, ResMut, Resource, StandardMaterial, Time, Transform, Update, Virtual, With};
+use bevy::ui::State;
 use crate::game::line::LineResource;
 use crate::game::scenes::{ColorChannel, SceneData};
 use crate::game::{camera, line, utils};
@@ -143,29 +144,11 @@ pub fn setup_scene(
     }
 
     for cube in &scene.cubes {
-        let mut transform = Transform::from_translation(cube.position);
-        transform = transform.with_scale(cube.scale);
-        transform.rotate_x(cube.rotation_euler.x.to_radians());
-        transform.rotate_y(cube.rotation_euler.y.to_radians());
-        transform.rotate_z(cube.rotation_euler.z.to_radians());
-        commands.spawn((
-            Mesh3d(cuboid_mesh.clone()),
-            MeshMaterial3d(game_resource.materials_to_colors[cube.color as usize].clone()),
-            ColorChannel(cube.color),
-            transform,
-            TransformCollidable,
-            GameplayObject
-        ));
+        cube.place(&mut commands, &cuboid_mesh, &game_resource);
     }
 
     for trigger in &scene.trigger_areas {
-        let mut transform = Transform::from_translation(trigger.position);
-        transform = transform.with_scale(trigger.scale);
-        commands.spawn((
-            transform,
-            trigger.function.clone(),
-            GameplayObject
-        ));
+        trigger.place(&mut commands);
     }
 
     commands.spawn((

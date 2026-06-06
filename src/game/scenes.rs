@@ -1,10 +1,15 @@
 use std::array;
 use std::collections::HashMap;
+use bevy::asset::Handle;
 use bevy::color::LinearRgba;
-use bevy::prelude::{Color, Component, Resource, Vec3};
+use bevy::mesh::{Mesh, Mesh3d};
+use bevy::pbr::MeshMaterial3d;
+use bevy::prelude::{Color, Commands, Component, Resource, Transform, Vec3};
 use crate::game::camera::CameraConfig;
 use crate::game::line::LineConfig;
+use crate::game::plugin::{GameplayObject, LiveGameDataResource, TransformCollidable};
 use crate::game::triggers::TriggerFunction;
+use crate::state::GameState;
 
 #[derive(Resource, Debug)]
 pub struct SceneData {
@@ -143,6 +148,27 @@ impl Cuboid {
         self.color = color;
         return self;
     }
+
+    pub fn place(
+        &self,
+        commands: &mut Commands,
+        cuboid_mesh: &Handle<Mesh>,
+        game_resource: &LiveGameDataResource
+    ) {
+        let mut transform = Transform::from_translation(self.position);
+        transform = transform.with_scale(self.scale);
+        transform.rotate_x(self.rotation_euler.x.to_radians());
+        transform.rotate_y(self.rotation_euler.y.to_radians());
+        transform.rotate_z(self.rotation_euler.z.to_radians());
+        commands.spawn((
+            Mesh3d(cuboid_mesh.clone()),
+            MeshMaterial3d(game_resource.materials_to_colors[self.color as usize].clone()),
+            ColorChannel(self.color),
+            transform,
+            TransformCollidable,
+            GameplayObject
+        ));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -174,6 +200,19 @@ impl TriggerArea {
     pub fn with_function(mut self, function: TriggerFunction) -> Self {
         self.function = function;
         return self;
+    }
+
+    pub fn place(
+        &self,
+        commands: &mut Commands
+    ) {
+        let mut transform = Transform::from_translation(self.position);
+        transform = transform.with_scale(self.scale);
+        commands.spawn((
+            transform,
+            self.function.clone(),
+            GameplayObject
+        ));
     }
 }
 
