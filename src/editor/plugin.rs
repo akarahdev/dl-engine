@@ -4,7 +4,8 @@ use bevy::camera_controller::free_camera::FreeCamera;
 use bevy::input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::math::{EulerRot, Quat, Vec3};
 use bevy::pbr::StandardMaterial;
-use bevy::prelude::{in_state, ButtonInput, Commands, CommandsStatesExt, ContainsEntity, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, MessageReader, MouseButton, Node, OnEnter, OnExit, Query, Res, ResMut, Resource, Scroll, Text, Transform, Update};
+use bevy::picking::PickingSystems;
+use bevy::prelude::{in_state, ButtonInput, Click, Commands, CommandsStatesExt, ContainsEntity, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, MessageReader, MouseButton, Node, On, OnEnter, OnExit, Out, Pointer, Query, Res, ResMut, Resource, Scroll, Text, Transform, Update};
 use bevy::ui::percent;
 use crate::game::plugin::{setup_line, setup_scene, spawn_camera, spawn_meshes, GameplayObject};
 use crate::game::scenes::{ColorChannel, Cuboid, SceneData, TriggerArea};
@@ -33,7 +34,8 @@ impl Plugin for EditScenePlugin {
             ))
             .add_systems(OnExit(GameState::Editor), (save_scene_to_data, crate::game::plugin::cleanup_scene).chain())
             .add_systems(OnEnter(GameState::Editor), load_editor_ui)
-            .add_systems(Update, play_level.run_if(in_state(GameState::Editor)));
+            .add_systems(Update, play_level.run_if(in_state(GameState::Editor)))
+            .add_systems(Update, select_object.after(PickingSystems::Hover));
     }
 }
 
@@ -105,5 +107,13 @@ fn attach_free_camera(
             mouse_key_cursor_grab: MouseButton::Right,
             ..Default::default()
         });
+    }
+}
+
+fn select_object(
+    mut messages: MessageReader<Pointer<Click>>,
+) {
+    for msg in messages.read() {
+        println!("{:?}", msg);
     }
 }

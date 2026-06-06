@@ -1,6 +1,7 @@
 use bevy::app::App;
 use bevy::camera_controller::free_camera::FreeCameraPlugin;
 use bevy::DefaultPlugins;
+use bevy::picking::DefaultPickingPlugins;
 use bevy::prelude::{AppExtStates, MeshPickingPlugin};
 use crate::editor::plugin::EditScenePlugin;
 use crate::game::plugin::PlayScenePlugin;

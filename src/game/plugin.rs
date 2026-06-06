@@ -5,6 +5,7 @@ use bevy::camera::Projection;
 use bevy::light::light_consts::lux::OVERCAST_DAY;
 use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
+use bevy::picking::Pickable;
 use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, Handle, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, OnEnter, OnExit, PerspectiveProjection, Quat, Query, Res, ResMut, Resource, StandardMaterial, State, Time, Transform, Update, Virtual, With};
 use crate::game::line::ConstLineResources;
 use crate::game::scenes::SceneData;
@@ -170,7 +171,8 @@ pub fn setup_line(
         Transform::from_translation(scene.line_config.start_pos),
         LineHead::default(),
         LineTail,
-        GameplayObject
+        GameplayObject,
+        Pickable { should_block_lower: true, is_hoverable: true }
     ));
 }
 

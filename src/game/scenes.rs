@@ -1,9 +1,9 @@
 use std::array;
-use std::collections::HashMap;
 use bevy::asset::{Assets, Handle};
 use bevy::color::LinearRgba;
 use bevy::mesh::{Mesh, Mesh3d};
 use bevy::pbr::{MeshMaterial3d, StandardMaterial};
+use bevy::picking::Pickable;
 use bevy::prelude::{Color, Commands, Component, Resource, Transform, Vec3};
 use crate::game::camera::CameraConfig;
 use crate::game::line::LineConfig;
@@ -166,7 +166,8 @@ impl Cuboid {
             ColorChannel(self.color),
             transform,
             TransformCollidable,
-            GameplayObject
+            GameplayObject,
+            Pickable { should_block_lower: true, is_hoverable: true }
         ));
     }
 }
@@ -225,6 +226,7 @@ impl TriggerArea {
                 GameplayObject,
                 Mesh3d(cuboid_mesh.clone()),
                 MeshMaterial3d(materials.add(Color::srgba(0.0, 1.0, 0.0, 0.3))),
+                Pickable { should_block_lower: true, is_hoverable: true }
             ));
         }
 
