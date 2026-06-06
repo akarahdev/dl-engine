@@ -6,7 +6,7 @@ use bevy::math::{EulerRot, Quat, Vec3};
 use bevy::pbr::StandardMaterial;
 use bevy::prelude::{in_state, ButtonInput, Commands, CommandsStatesExt, ContainsEntity, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, MessageReader, MouseButton, Node, OnEnter, OnExit, Query, Res, ResMut, Resource, Scroll, Text, Transform, Update};
 use bevy::ui::percent;
-use crate::game::plugin::GameplayObject;
+use crate::game::plugin::{setup_line, setup_scene, spawn_camera, spawn_meshes, GameplayObject};
 use crate::game::scenes::{ColorChannel, Cuboid, SceneData, TriggerArea};
 use crate::game::triggers::TriggerFunction;
 use crate::state::GameState;
@@ -24,7 +24,13 @@ impl Plugin for EditScenePlugin {
             .insert_resource(EditorContext {
                 speed: 0.1
             })
-            .add_systems(OnEnter(GameState::Editor), (crate::game::plugin::setup_scene, attach_free_camera).chain())
+            .add_systems(OnEnter(GameState::Editor), (
+                spawn_meshes,
+                spawn_camera,
+                setup_line.after(spawn_meshes),
+                setup_scene.after(spawn_meshes),
+                attach_free_camera.after(spawn_camera)
+            ))
             .add_systems(OnExit(GameState::Editor), (save_scene_to_data, crate::game::plugin::cleanup_scene).chain())
             .add_systems(OnEnter(GameState::Editor), load_editor_ui)
             .add_systems(Update, play_level.run_if(in_state(GameState::Editor)));

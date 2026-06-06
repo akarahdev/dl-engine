@@ -1,9 +1,9 @@
 use std::array;
 use std::collections::HashMap;
-use bevy::asset::Handle;
+use bevy::asset::{Assets, Handle};
 use bevy::color::LinearRgba;
 use bevy::mesh::{Mesh, Mesh3d};
-use bevy::pbr::MeshMaterial3d;
+use bevy::pbr::{MeshMaterial3d, StandardMaterial};
 use bevy::prelude::{Color, Commands, Component, Resource, Transform, Vec3};
 use crate::game::camera::CameraConfig;
 use crate::game::line::LineConfig;
@@ -62,7 +62,7 @@ impl SceneData {
                 trigger_areas.push(
                     TriggerArea::new()
                         .with_position(Vec3::new(x, 0.0, z))
-                        .with_scale(Vec3::new(size, 10.0, size))
+                        .with_scale(Vec3::new(size + 0.1, 10.0, size + 0.1))
                         .with_function(TriggerFunction::RecolorLine(
                             Color::LinearRgba(LinearRgba::new(
                                 rand::random::<f32>(),
@@ -78,7 +78,7 @@ impl SceneData {
                 trigger_areas.push(
                     TriggerArea::new()
                         .with_position(Vec3::new(x, 0.0, z))
-                        .with_scale(Vec3::new(size, 10.0, size))
+                        .with_scale(Vec3::new(size + 0.1, 10.0, size + 0.1))
                         .with_function(TriggerFunction::ChangeColorOfChannel(
                             1,
                             Color::LinearRgba(LinearRgba::new(
@@ -204,15 +204,30 @@ impl TriggerArea {
 
     pub fn place(
         &self,
-        commands: &mut Commands
+        commands: &mut Commands,
+        state: &GameState,
+        cuboid_mesh: &Handle<Mesh>,
+        materials: &mut Assets<StandardMaterial>
     ) {
         let mut transform = Transform::from_translation(self.position);
         transform = transform.with_scale(self.scale);
-        commands.spawn((
-            transform,
-            self.function.clone(),
-            GameplayObject
-        ));
+
+        if *state == GameState::InGame {
+            commands.spawn((
+                transform,
+                self.function.clone(),
+                GameplayObject
+            ));
+        } else if *state == GameState::Editor {
+            commands.spawn((
+                transform,
+                self.function.clone(),
+                GameplayObject,
+                Mesh3d(cuboid_mesh.clone()),
+                MeshMaterial3d(materials.add(Color::srgba(0.0, 1.0, 0.0, 0.3))),
+            ));
+        }
+
     }
 }
 

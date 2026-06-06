@@ -25,8 +25,8 @@ impl Default for LineConfig {
 }
 
 #[derive(Resource, Default)]
-pub struct LineResource {
-    pub line_mesh: Handle<Mesh>,
+pub struct ConstLineResources {
+    pub cuboid_mesh: Handle<Mesh>,
     pub line_material: Handle<StandardMaterial>
 }
 
@@ -115,7 +115,7 @@ pub fn make_line_fall(
 
 pub fn make_new_line(
     mut mr: MessageReader<BuildNewLine>,
-    mut line_resources: Res<LineResource>,
+    mut line_resources: Res<ConstLineResources>,
     mut commands: Commands,
     mut heads: Query<(Entity, &mut LineHead, &Transform)>,
 ) {
@@ -142,7 +142,7 @@ pub fn make_new_line(
             };
             new_transform.rotate_y(head.1.base_rot.to_radians() + factor);
             commands.spawn((
-                Mesh3d(line_resources.line_mesh.clone()),
+                Mesh3d(line_resources.cuboid_mesh.clone()),
                 MeshMaterial3d(line_resources.line_material.clone()),
                 new_transform,
                 head.1.clone().with_new_id(),
