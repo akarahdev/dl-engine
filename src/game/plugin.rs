@@ -8,7 +8,7 @@ use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
 use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, Handle, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, OnEnter, OnExit, Quat, Query, Res, ResMut, Resource, StandardMaterial, Time, Transform, Update, Virtual, With};
 use crate::game::line::LineResource;
-use crate::game::scenes::SceneData;
+use crate::game::scenes::{ColorChannel, SceneData};
 use crate::game::{camera, line, utils};
 use crate::game::triggers::TriggerFunction;
 use crate::state::GameState;
@@ -151,6 +151,7 @@ pub fn setup_scene(
         commands.spawn((
             Mesh3d(cuboid_mesh.clone()),
             MeshMaterial3d(game_resource.materials_to_colors[cube.color as usize].clone()),
+            ColorChannel(cube.color),
             transform,
             TransformCollidable,
             GameplayObject

@@ -1,7 +1,7 @@
 use std::array;
 use std::collections::HashMap;
 use bevy::color::LinearRgba;
-use bevy::prelude::{Color, Resource, Vec3};
+use bevy::prelude::{Color, Component, Resource, Vec3};
 use crate::game::camera::CameraConfig;
 use crate::game::line::LineConfig;
 use crate::game::triggers::TriggerFunction;
@@ -26,7 +26,7 @@ impl SceneData {
         ];
         let mut trigger_areas = vec![];
 
-        let size = 2.0;
+        let mut size = 3.0;
         let mut x = 0.0;
         let mut z = 0.0;
         for _ in 0..1000 {
@@ -85,6 +85,11 @@ impl SceneData {
                         ))
                 )
             }
+
+            size -= 0.01;
+            if size < 0.05 {
+                break;
+            }
         }
 
         let mut arr = array::from_fn(|_| Color::LinearRgba(LinearRgba::WHITE));
@@ -114,7 +119,7 @@ impl Cuboid {
         Self {
             color: 0,
             position: Vec3::ZERO,
-            rotation_euler: Vec3::ONE,
+            rotation_euler: Vec3::ZERO,
             scale: Vec3::ONE,
         }
     }
@@ -171,4 +176,7 @@ impl TriggerArea {
         return self;
     }
 }
+
+#[derive(Debug, Clone, Component)]
+pub struct ColorChannel(pub u8);
 
