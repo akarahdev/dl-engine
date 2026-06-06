@@ -49,6 +49,23 @@ impl SceneData {
                         .with_function(TriggerFunction::SetCameraOffset(Vec3::new(off_x, 12.0, off_z)))
                 )
             }
+
+            if rand::random::<f32>() < 0.1 {
+
+                trigger_areas.push(
+                    TriggerArea::new()
+                        .with_position(Vec3::new(x, 0.0, z))
+                        .with_scale(Vec3::new(size, 10.0, size))
+                        .with_function(TriggerFunction::RecolorLine(
+                            Color::LinearRgba(LinearRgba::new(
+                                rand::random::<f32>(),
+                                rand::random::<f32>(),
+                                rand::random::<f32>(),
+                                1.0
+                            ))
+                        ))
+                )
+            }
         }
 
 

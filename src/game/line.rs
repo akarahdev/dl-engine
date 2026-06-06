@@ -5,7 +5,7 @@ use bevy::camera::primitives::Aabb;
 use bevy::camera::Camera3d;
 use bevy::input::ButtonInput;
 use bevy::mesh::Mesh3d;
-use crate::game::plugin::{BuildNewLine, GameplayObject, LineHead, TransformCollidable};
+use crate::game::plugin::{BuildNewLine, GameplayObject, LineHead, LineTail, TransformCollidable};
 use crate::game::utils;
 use crate::state::GameState;
 
@@ -146,6 +146,7 @@ pub fn make_new_line(
                 MeshMaterial3d(line_resources.line_material.clone()),
                 new_transform,
                 head.1.clone().with_new_id(),
+                LineTail,
                 GameplayObject
             ));
         }

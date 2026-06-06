@@ -172,6 +172,7 @@ pub fn setup_scene(
         MeshMaterial3d(line_resources.line_material.clone()),
         Transform::from_translation(scene.line_config.start_pos),
         LineHead::default(),
+        LineTail,
         GameplayObject
     ));
 }
@@ -186,9 +187,13 @@ pub(crate) fn cleanup_scene(
 }
 
 fn activate_triggers(
-    heads: Query<(&LineHead, &Transform)>,
+    mut commands: Commands,
+    heads: Query<(&LineHead, &Transform, &MeshMaterial3d<StandardMaterial>)>,
+    lines: Query<(Entity, &LineTail)>,
     triggers: Query<(&TriggerFunction, &Transform)>,
     mut game_resource: ResMut<LiveGameDataResource>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut line_resources: ResMut<LineResource>,
 ) {
     for head in heads {
         let head_pos = utils::tip_of_head((head.0, head.1)) - Vec3::new(0.0, 0.5, 0.0);
@@ -198,6 +203,13 @@ fn activate_triggers(
                     TriggerFunction::None => {}
                     TriggerFunction::SetCameraOffset(offset) => {
                         game_resource.camera_offset = *offset;
+                    }
+                    TriggerFunction::RecolorLine(color) => {
+                        let color_mat = materials.add(*color);
+                        line_resources.line_material = color_mat.clone();
+                        for tail in lines {
+                            commands.entity(tail.0).insert(MeshMaterial3d(color_mat.clone()));
+                        }
                     }
                 }
             }

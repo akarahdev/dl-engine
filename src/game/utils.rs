@@ -18,7 +18,7 @@ pub fn forward_of_head(head: (&LineHead, &Transform)) -> Vec3 {
     let f_rot =
         head.0.base_rot.to_radians()
             + if head.0.is_in_alternated_rot { 90.0_f32.to_radians() } else { 0.0 };
-    return Vec3::new(
+    Vec3::new(
         f_rot.sin(),
         0.0,
         f_rot.cos()
