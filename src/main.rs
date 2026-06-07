@@ -1,3 +1,5 @@
+extern crate core;
+
 use bevy::app::App;
 use bevy::camera_controller::free_camera::FreeCameraPlugin;
 use bevy::DefaultPlugins;
