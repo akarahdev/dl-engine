@@ -35,7 +35,7 @@ impl Plugin for EditScenePlugin {
             .add_systems(OnExit(GameState::Editor), (save_scene_to_data, crate::game::plugin::cleanup_scene).chain())
             .add_systems(OnEnter(GameState::Editor), load_editor_ui)
             .add_systems(Update, play_level.run_if(in_state(GameState::Editor)))
-            .add_systems(Update, select_object.after(PickingSystems::Hover));
+            .add_systems(Update, select_object.run_if(in_state(GameState::Editor)).after(PickingSystems::Hover));
     }
 }
 
