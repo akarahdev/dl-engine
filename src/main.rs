@@ -5,6 +5,7 @@ use bevy::camera_controller::free_camera::FreeCameraPlugin;
 use bevy::DefaultPlugins;
 use bevy::picking::DefaultPickingPlugins;
 use bevy::prelude::{AppExtStates, MeshPickingPlugin};
+use transform_gizmo_bevy::TransformGizmoPlugin;
 use crate::editor::plugin::EditScenePlugin;
 use crate::game::plugin::PlayScenePlugin;
 use crate::state::GameState;
@@ -16,6 +17,7 @@ pub mod editor;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(TransformGizmoPlugin)
         .add_plugins(MeshPickingPlugin)
         .add_plugins(FreeCameraPlugin)
         .add_plugins(PlayScenePlugin)

@@ -7,6 +7,7 @@ use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
 use bevy::picking::Pickable;
 use bevy::prelude::{in_state, ButtonInput, Camera3d, Commands, CommandsStatesExt, Component, Cuboid, DirectionalLight, Entity, Handle, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, OnEnter, OnExit, PerspectiveProjection, Quat, Query, Res, ResMut, Resource, StandardMaterial, State, Time, Transform, Update, Virtual, With};
+use transform_gizmo_bevy::GizmoCamera;
 use crate::game::line::ConstLineResources;
 use crate::game::scenes::SceneData;
 use crate::game::{camera, line, utils};
@@ -143,7 +144,8 @@ pub fn spawn_camera(
     commands.spawn((
         Camera3d::default(),
         camera_transform,
-        GameplayObject
+        GameplayObject,
+        GizmoCamera
     ));
 
     game_resource.camera_offset = scene.camera_config.offset;

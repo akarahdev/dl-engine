@@ -8,16 +8,12 @@ use bevy::pbr::StandardMaterial;
 use bevy::picking::{Pickable, PickingSystems};
 use bevy::prelude::{in_state, Axis, ButtonInput, Click, Commands, CommandsStatesExt, Component, ContainsEntity, Drag, DragEnd, DragStart, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, MessageReader, MessageWriter, MouseButton, Node, On, OnEnter, OnExit, Out, Pointer, Query, Res, ResMut, Resource, Scroll, Single, Text, Transform, Update, With, Without, World};
 use bevy::ui::percent;
+use transform_gizmo_bevy::GizmoTarget;
 use crate::game::line::{ConstLineResources, LineConfig};
 use crate::game::plugin::{setup_line, setup_scene, spawn_camera, spawn_meshes, GameplayObject, LineHead};
 use crate::game::scenes::{ColorChannel, Cuboid, SceneData, TriggerArea};
 use crate::game::triggers::TriggerFunction;
 use crate::state::GameState;
-
-#[derive(Component, Debug)]
-pub struct Movepad {
-    dir: Vec3
-}
 
 #[derive(Component, Debug)]
 pub struct EditorSelection;
@@ -43,7 +39,6 @@ impl Plugin for EditScenePlugin {
             .add_systems(Update, play_level.run_if(in_state(GameState::Editor)))
             .add_systems(Update, (
                 select_object,
-                use_movepad,
                 rehighlight_selection
             ).run_if(in_state(GameState::Editor)).after(PickingSystems::Hover))
             .add_systems(PostUpdate, (
@@ -57,59 +52,20 @@ fn rehighlight_selection(
     mut commands: Commands,
     line_resources: Res<ConstLineResources>,
     selection: Query<(Entity, &Transform), With<EditorSelection>>,
-    prev_highlight: Query<Entity, With<PointLight>>,
-    prev_movepad: Query<Entity, With<Movepad>>
+    prev_highlight: Query<Entity, With<PointLight>>
 ) {
-    for msg in mr.read() {
+    for _ in mr.read() {
         for entity in prev_highlight {
             commands.entity(entity).remove::<PointLight>();
-        }
-        for entity in prev_movepad {
-            commands.entity(entity).despawn();
+            commands.entity(entity).remove::<GizmoTarget>();
         }
 
-        for (entity, transform) in selection.iter() {
+        for (entity, _) in selection.iter() {
             commands.entity(entity).insert(PointLight {
                 intensity: 50000.0,
                 ..Default::default()
             });
-            commands.spawn((
-                Transform::from_translation(
-                    transform.translation + Vec3::new(0.0, transform.scale.y * 0.5 + 0.25, 0.0)
-                ).with_scale(Vec3::new(0.5, 0.5, 0.5)),
-                Mesh3d(line_resources.cuboid_mesh.clone()),
-                MeshMaterial3d(line_resources.line_material.clone()),
-                Pickable { should_block_lower: true, is_hoverable: true },
-                GameplayObject,
-                Movepad {
-                    dir: -Vec3::Y
-                }
-            ));
-            commands.spawn((
-                Transform::from_translation(
-                    transform.translation + Vec3::new(transform.scale.x * 0.5 + 0.25, 0.0, 0.0)
-                ).with_scale(Vec3::new(0.5, 0.5, 0.5)),
-                Mesh3d(line_resources.cuboid_mesh.clone()),
-                MeshMaterial3d(line_resources.line_material.clone()),
-                Pickable { should_block_lower: true, is_hoverable: true },
-                GameplayObject,
-                Movepad {
-                    dir: Vec3::X
-                }
-            ));
-            commands.spawn((
-                Transform::from_translation(
-                    transform.translation + Vec3::new(0.0, 0.0, transform.scale.z * 0.5 + 0.25)
-                ).with_scale(Vec3::new(0.5, 0.5, 0.5)),
-                Mesh3d(line_resources.cuboid_mesh.clone()),
-                MeshMaterial3d(line_resources.line_material.clone()),
-                Pickable { should_block_lower: true, is_hoverable: true },
-                GameplayObject,
-                Movepad {
-                    dir: Vec3::Z
-                }
-            ));
-
+            commands.entity(entity).insert(GizmoTarget::default());
         }
     }
 }
@@ -188,30 +144,6 @@ fn attach_free_camera(
             mouse_key_cursor_grab: MouseButton::Right,
             ..Default::default()
         });
-    }
-}
-
-fn use_movepad(
-    mut movepad_target_query: Query<(&Movepad, &mut Transform), Without<EditorSelection>>,
-    mut editor_selection: Query<(&mut Transform, &EditorSelection), Without<Movepad>>,
-    mut recv_drag: MessageReader<Pointer<Drag>>
-) {
-    for msg in recv_drag.read() {
-        println!("MSG {:?}", msg);
-
-        let mut move_dist = Vec3::ZERO;
-
-        if let Ok((movepad, mut movepad_pos)) = movepad_target_query.get_mut(msg.entity) {
-            let mouse_dist = (msg.delta.x + msg.delta.y) / 300.0;
-            move_dist = movepad.dir * mouse_dist;
-            for mut selection in editor_selection.iter_mut() {
-                selection.0.translation += move_dist;
-            }
-        }
-
-        for (_, mut movepad_pos_2) in movepad_target_query.iter_mut() {
-            movepad_pos_2.translation += move_dist;
-        }
     }
 }
 
