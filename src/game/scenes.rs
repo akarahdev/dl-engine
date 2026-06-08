@@ -23,6 +23,17 @@ pub struct SceneData {
 }
 
 impl SceneData {
+    pub fn new_empty() -> Self {
+        SceneData {
+            start_pos: Vec3::new(0.0, 0.0, 0.0),
+            camera_config: CameraConfig::default(),
+            line_config: LineConfig::default(),
+            cubes: vec![],
+            trigger_areas: vec![],
+            color_channels: array::from_fn(|_| Color::LinearRgba(LinearRgba::WHITE)),
+        }
+    }
+
     pub fn new_simple() -> Self {
         let mut cubes = vec![
             Cuboid::new()

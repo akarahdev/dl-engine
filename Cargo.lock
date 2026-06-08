@@ -989,6 +989,7 @@ dependencies = [
  "bevy_transform",
  "bevy_ui",
  "bevy_ui_render",
+ "bevy_ui_widgets",
  "bevy_utils",
  "bevy_window",
  "bevy_winit",
@@ -1355,6 +1356,15 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "wgpu-types",
+]
+
+[[package]]
+name = "bevy_simple_text_input"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a96e5826303335a9c483ebb79ec973cfc40ceb90ec4ffb3dba14cac8139d5fae"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]
@@ -2300,6 +2310,7 @@ name = "dl-engine"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_simple_text_input",
  "rand 0.10.1",
  "transform-gizmo-bevy",
 ]

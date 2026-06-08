@@ -1,7 +1,7 @@
 use std::array;
 use bevy::app::{FixedUpdate, Plugin, PreUpdate};
 use bevy::asset::Assets;
-use bevy::camera::Projection;
+use bevy::camera::{Camera2d, Projection};
 use bevy::light::light_consts::lux::OVERCAST_DAY;
 use bevy::math::{EulerRot, Vec3};
 use bevy::mesh::{Mesh, Mesh3d};
@@ -19,7 +19,7 @@ pub struct PlayScenePlugin;
 impl Plugin for PlayScenePlugin {
     fn build(&self, app: &mut bevy::app::App) {
         app
-            .insert_resource(SceneData::new_simple())
+            .insert_resource(SceneData::new_empty())
             .insert_resource(ConstLineResources::default())
             .insert_resource(LiveGameDataResource {
                 camera_offset: Vec3::new(-6.0, 6.0, -6.0),

@@ -4,7 +4,7 @@ use crate::game::plugin::LiveGameDataResource;
 use crate::game::plugin::LineHead;
 use crate::game::utils;
 
-#[derive(Resource, Debug)]
+#[derive(Resource, Debug, Clone)]
 pub struct CameraConfig {
     pub offset: Vec3
 }

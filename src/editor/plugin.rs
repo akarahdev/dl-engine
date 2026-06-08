@@ -1,16 +1,22 @@
 use bevy::app::{Plugin, PostUpdate};
+use bevy::asset::Assets;
 use bevy::camera::Camera3d;
 use bevy::camera_controller::free_camera::FreeCamera;
+use bevy::feathers::controls::{button, ButtonProps, ButtonVariant};
+use bevy::feathers::rounded_corners::RoundedCorners;
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeFontColor};
+use bevy::feathers::tokens;
 use bevy::light::PointLight;
 use bevy::math::Vec3;
 use bevy::mesh::Mesh3d;
 use bevy::pbr::StandardMaterial;
 use bevy::picking::{Pickable, PickingSystems};
-use bevy::prelude::{in_state, Axis, ButtonInput, Click, Commands, CommandsStatesExt, Component, ContainsEntity, Drag, DragEnd, DragStart, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, MessageReader, MessageWriter, MouseButton, Node, On, OnEnter, OnExit, Out, Pointer, Query, Res, ResMut, Resource, Scroll, Single, Text, Transform, Update, With, Without, World};
-use bevy::ui::percent;
+use bevy::prelude::{in_state, Axis, ButtonInput, Click, Color, Commands, CommandsStatesExt, Component, ContainsEntity, Drag, DragEnd, DragStart, Entity, IntoScheduleConfigs, KeyCode, MeshMaterial3d, Message, MessageReader, MessageWriter, MouseButton, Node, On, OnEnter, OnExit, Out, Pointer, Query, Res, ResMut, Resource, Scroll, Single, Text, Transform, Update, With, Without, World};
+use bevy::ui::{percent, BackgroundColor, UiTransform, Val2};
+use bevy_simple_text_input::{TextInput, TextInputInactive};
 use transform_gizmo_bevy::GizmoTarget;
 use crate::game::line::{ConstLineResources, LineConfig};
-use crate::game::plugin::{setup_line, setup_scene, spawn_camera, spawn_meshes, GameplayObject, LineHead};
+use crate::game::plugin::{setup_line, setup_scene, spawn_camera, spawn_meshes, GameplayObject, LineHead, LiveGameDataResource};
 use crate::game::scenes::{ColorChannel, Cuboid, SceneData, TriggerArea};
 use crate::game::triggers::TriggerFunction;
 use crate::state::GameState;
@@ -20,6 +26,12 @@ pub struct EditorSelection;
 
 #[derive(Message)]
 pub struct EditorSelectionUpdate;
+
+#[derive(Component)]
+pub struct CuboidSpawnButton;
+
+#[derive(Component)]
+pub struct TriggerSpawnButton;
 
 pub struct EditScenePlugin;
 
@@ -39,7 +51,10 @@ impl Plugin for EditScenePlugin {
             .add_systems(Update, play_level.run_if(in_state(GameState::Editor)))
             .add_systems(Update, (
                 select_object,
-                rehighlight_selection
+                rehighlight_selection,
+                spawn_objects,
+                delete_selection,
+                copy_selection
             ).run_if(in_state(GameState::Editor)).after(PickingSystems::Hover))
             .add_systems(PostUpdate, (
                 rehighlight_selection,
@@ -50,7 +65,6 @@ impl Plugin for EditScenePlugin {
 fn rehighlight_selection(
     mut mr: MessageReader<EditorSelectionUpdate>,
     mut commands: Commands,
-    line_resources: Res<ConstLineResources>,
     selection: Query<(Entity, &Transform), With<EditorSelection>>,
     prev_highlight: Query<Entity, With<PointLight>>
 ) {
@@ -76,8 +90,9 @@ fn save_scene_to_data(
     head: Single<(&Transform, &LineHead)>,
     cubes: Query<(Entity, &Transform, &MeshMaterial3d<StandardMaterial>, &ColorChannel)>,
     triggers: Query<(Entity, &Transform, &TriggerFunction)>,
+    gizmos: Query<(Entity, &GizmoTarget)>
 ) {
-    let mut new_scene = SceneData::new_simple();
+    let mut new_scene = SceneData::new_empty();
 
     new_scene.cubes.clear();
     new_scene.trigger_areas.clear();
@@ -100,10 +115,16 @@ fn save_scene_to_data(
         )
     }
 
+    for gizmo in gizmos.iter() {
+        commands.entity(gizmo.0).remove::<GizmoTarget>();
+    }
+
     new_scene.line_config = LineConfig {
         color: scene_data.line_config.color,
         start_pos: head.0.translation
     };
+    new_scene.camera_config = scene_data.camera_config.clone();
+    new_scene.color_channels = scene_data.color_channels;
 
     commands.insert_resource(new_scene);
 }
@@ -114,11 +135,35 @@ fn load_editor_ui(
     commands.spawn((
         Text::new("Editor Mode"),
         Node {
-            top: percent(5),
-            left: percent(5),
+            top: percent(1),
+            left: percent(1),
             ..Default::default()
         },
         GameplayObject
+    ));
+
+    commands.spawn((
+        Text::new("+C"),
+        Node {
+            top: percent(10),
+            left: percent(95),
+            ..Default::default()
+        },
+        GameplayObject,
+        CuboidSpawnButton,
+        BackgroundColor(Color::BLACK),
+    ));
+
+    commands.spawn((
+        Text::new("+T"),
+        Node {
+            top: percent(20),
+            left: percent(95),
+            ..Default::default()
+        },
+        GameplayObject,
+        TriggerSpawnButton,
+        BackgroundColor(Color::BLACK),
     ));
 }
 
@@ -176,5 +221,90 @@ fn select_object(
             mw.write(EditorSelectionUpdate);
         }
     }
+}
 
+fn delete_selection(
+    mut mw: MessageWriter<EditorSelectionUpdate>,
+    selection: Query<Entity, With<EditorSelection>>,
+    mut commands: Commands,
+    key_input: Res<ButtonInput<KeyCode>>,
+) {
+    if key_input.just_pressed(KeyCode::Backspace) {
+        for entity in selection.iter() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn copy_selection(
+    mut mw: MessageWriter<EditorSelectionUpdate>,
+    selection: Query<(Entity, &Transform), With<EditorSelection>>,
+    mut commands: Commands,
+    key_input: Res<ButtonInput<KeyCode>>,
+) {
+    if key_input.pressed(KeyCode::ControlLeft) && key_input.just_pressed(KeyCode::KeyC) {
+        for (entity, src_transform) in selection.iter() {
+            commands.entity(entity).remove::<EditorSelection>();
+
+            let mut e_ref = commands.entity(entity);
+            let mut new_ent = e_ref.clone_and_spawn();
+            new_ent.insert(EditorSelection);
+            new_ent.insert(
+                src_transform.with_translation(
+                    src_transform.translation + Vec3::new(0.0, 0.0, 1.0)
+                )
+            );
+
+            mw.write(EditorSelectionUpdate);
+
+        }
+    }
+}
+
+
+fn spawn_objects(
+    mut commands: Commands,
+    live_game_data_resource: Res<LiveGameDataResource>,
+    line_resources: Res<ConstLineResources>,
+
+    add_object_button: Query<&CuboidSpawnButton>,
+    add_trigger_button: Query<&TriggerSpawnButton>,
+
+    mut recv_click: MessageReader<Pointer<Click>>,
+    camera: Query<&Transform, With<Camera3d>>,
+
+    mut materials: ResMut<Assets<StandardMaterial>>
+) {
+    for msg in recv_click.read() {
+        if let Ok(_) = add_object_button.get(msg.entity) {
+            for cam in camera.iter() {
+                let position = cam.translation + (cam.forward() * 20.0);
+                let cuboid = Cuboid::new()
+                    .with_position(position)
+                    .with_scale(Vec3::new(1.0, 1.0, 1.0))
+                    .with_color_channel(1);
+                cuboid.place(
+                    &mut commands,
+                    &line_resources.cuboid_mesh,
+                    &live_game_data_resource
+                );
+            }
+        }
+
+        if let Ok(_) = add_trigger_button.get(msg.entity) {
+            for cam in camera.iter() {
+                let position = cam.translation + (cam.forward() * 20.0);
+                let trig = TriggerArea::new()
+                    .with_position(position)
+                    .with_scale(Vec3::new(1.0, 1.0, 1.0))
+                    .with_function(TriggerFunction::None);
+                trig.place(
+                    &mut commands,
+                    &GameState::Editor,
+                    &line_resources.cuboid_mesh,
+                    &mut materials
+                );
+            }
+        }
+    }
 }
